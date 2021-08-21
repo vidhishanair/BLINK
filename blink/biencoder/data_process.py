@@ -14,6 +14,8 @@ from pytorch_transformers.tokenization_bert import BertTokenizer
 
 from blink.biencoder.zeshel_utils import world_to_id
 from blink.common.params import ENT_START_TAG, ENT_END_TAG, ENT_TITLE_TAG
+from blink.cpt.model import CPTModel
+from blink.cpt.data import split_token_ids_with_span_mask_into_source_target
 
 
 def select_field(data, key1, key2=None):
@@ -35,7 +37,8 @@ def get_context_representation(
     mention_tokens = []
     if sample[mention_key] and len(sample[mention_key]) > 0:
         mention_tokens = tokenizer.tokenize(sample[mention_key])
-        mention_tokens = [ent_start_token] + mention_tokens + [ent_end_token]
+        # mention_tokens = [ent_start_token] + mention_tokens + [ent_end_token]
+        mention_tokens = mention_tokens
 
     context_left = sample[context_key + "_left"]
     context_right = sample[context_key + "_right"]
@@ -58,13 +61,28 @@ def get_context_representation(
     )
 
     context_tokens = ["[CLS]"] + context_tokens + ["[SEP]"]
-    input_ids = tokenizer.convert_tokens_to_ids(context_tokens)
+
+    context_left_ids = tokenizer.convert_tokens_to_ids(["[CLS]"]+context_left[-left_quota:])
+    mention_ids = tokenizer.convert_tokens_to_ids(mention_tokens)
+    context_right_ids = tokenizer.convert_tokens_to_ids(context_right[:right_quota]+["[SEP]"])
+    input_ids = context_left_ids + mention_ids + context_right_ids
+    input_mention_mask = [False]*len(context_left_ids) + [True]*len(mention_ids) + [False]*len(context_right_ids)
+    sentinel_token_ids = [
+        tokenizer.encode(f"<extra_id_{i}>", add_special_tokens=False)[0] for i in range(49)
+    ]
+    source_target = split_token_ids_with_span_mask_into_source_target(input_ids, input_mention_mask, sentinel_token_ids)
+
+    # input_ids = tokenizer.convert_tokens_to_ids(context_tokens)
+
     padding = [0] * (max_seq_length - len(input_ids))
     input_ids += padding
+    input_mention_mask += padding
     assert len(input_ids) == max_seq_length
+    assert len(input_mention_mask) == max_seq_length
 
     return {
         "tokens": context_tokens,
+        "token_mention_mask": context_tokens,
         "ids": input_ids,
     }
 

@@ -163,6 +163,12 @@ class BlinkParser(argparse.ArgumentParser):
             required=True,
             help="The output directory where generated output file (model, etc.) is to be dumped.",
         )
+        parser.add_argument("--model_name_or_path", type=str, required=True)
+        parser.add_argument(
+            "--tokenizer",
+            type=str,
+            help="Name of the tokenizer. If none, use --model_name_or_path instead",
+        )
 
 
     def add_training_args(self, args=None):

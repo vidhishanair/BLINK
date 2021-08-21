@@ -17,7 +17,9 @@ from pytorch_transformers.tokenization_bert import BertTokenizer
 from torch import nn
 
 from pytorch_transformers.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
-from pytorch_transformers.optimization import AdamW
+# from pytorch_transformers.optimization import AdamW
+from transformers import Adafactor
+from transformers.optimization import AdamW, get_constant_schedule_with_warmup
 
 
 patterns_optimizer = {
@@ -77,6 +79,48 @@ def get_bert_optimizer(models, type_optimization, learning_rate, fp16=False):
         optimizer = fp16_optimizer_wrapper(optimizer)
 
     return optimizer
+
+
+def get_cpt_optimizer(model, params):
+    """ Optimizes the network with AdamWithDecay
+    """
+    if params["optimizer"] == "adam":
+        "Prepare optimizer and schedule (linear warmup and decay)"
+        no_decay = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": params["weight_decay"],
+            },
+            {
+                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
+        ]
+        optimizer = AdamW(
+            optimizer_grouped_parameters,
+            lr=params["learning_rate"],
+            eps=params["adam_epsilon"],
+        )
+        # scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=self.hparams.warmup_steps, num_training_steps=self.total_steps)
+        scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=params["warmup_steps"])
+    elif params["optimizer"] == "adafactor":
+        # recommended hyperparams from https://huggingface.co/transformers/main_classes/optimizer_schedules.html
+        optimizer = Adafactor(
+            model.parameters(),
+            scale_parameter=False,
+            relative_step=False,
+            warmup_init=False,
+            lr=1e-3,
+            clip_threshold=1.0,
+        )
+        # recommended to use constant schedule with warmup https://huggingface.co/transformers/main_classes/optimizer_schedules.html
+        scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=params["warmup_steps"])
+    else:
+        raise NotImplementedError
+
+    scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
+    return optimizer, scheduler
 
 
 def ellipse(lst, max_display=5, sep='|'):

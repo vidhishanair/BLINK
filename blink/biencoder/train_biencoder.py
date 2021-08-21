@@ -25,15 +25,18 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Tenso
 from pytorch_transformers.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from pytorch_transformers.optimization import WarmupLinearSchedule
 from pytorch_transformers.tokenization_bert import BertTokenizer
-from pytorch_transformers.modeling_utils import WEIGHTS_NAME
+# from pytorch_transformers.modeling_utils import WEIGHTS_NAME
 
-from blink.biencoder.biencoder import BiEncoderRanker, load_biencoder
+from transformers.modeling_utils import WEIGHTS_NAME
+
+# from blink.biencoder.biencoder import BiEncoderRanker, load_biencoder
+from blink.biencoder.cpt_biencoder import BiEncoderRanker, load_biencoder
 import logging
 
 import blink.candidate_ranking.utils as utils
 import blink.biencoder.data_process as data
 from blink.biencoder.zeshel_utils import DOC_PATH, WORLDS, world_to_id
-from blink.common.optimizer import get_bert_optimizer
+from blink.common.optimizer import get_bert_optimizer, get_cpt_optimizer
 from blink.common.params import BlinkParser
 
 
@@ -82,28 +85,31 @@ def evaluate(
 
 
 def get_optimizer(model, params):
-    return get_bert_optimizer(
-        [model],
-        params["type_optimization"],
-        params["learning_rate"],
-        fp16=params.get("fp16"),
-    )
+    # return get_bert_optimizer(
+    #     [model],
+    #     params["type_optimization"],
+    #     params["learning_rate"],
+    #     fp16=params.get("fp16"),
+    # )
+    return get_cpt_optimizer(
+        model,
+        params)
 
 
-def get_scheduler(params, optimizer, len_train_data, logger):
-    batch_size = params["train_batch_size"]
-    grad_acc = params["gradient_accumulation_steps"]
-    epochs = params["num_train_epochs"]
-
-    num_train_steps = int(len_train_data / batch_size / grad_acc) * epochs
-    num_warmup_steps = int(num_train_steps * params["warmup_proportion"])
-
-    scheduler = WarmupLinearSchedule(
-        optimizer, warmup_steps=num_warmup_steps, t_total=num_train_steps,
-    )
-    logger.info(" Num optimization steps = %d" % num_train_steps)
-    logger.info(" Num warmup steps = %d", num_warmup_steps)
-    return scheduler
+# def get_scheduler(params, optimizer, len_train_data, logger):
+#     batch_size = params["train_batch_size"]
+#     grad_acc = params["gradient_accumulation_steps"]
+#     epochs = params["num_train_epochs"]
+#
+#     num_train_steps = int(len_train_data / batch_size / grad_acc) * epochs
+#     num_warmup_steps = int(num_train_steps * params["warmup_proportion"])
+#
+#     scheduler = WarmupLinearSchedule(
+#         optimizer, warmup_steps=num_warmup_steps, t_total=num_train_steps,
+#     )
+#     logger.info(" Num optimization steps = %d" % num_train_steps)
+#     logger.info(" Num warmup steps = %d", num_warmup_steps)
+#     return scheduler
 
 
 def main(params):
@@ -205,8 +211,8 @@ def main(params):
         "device: {} n_gpu: {}, distributed training: {}".format(device, n_gpu, False)
     )
 
-    optimizer = get_optimizer(model, params)
-    scheduler = get_scheduler(params, optimizer, len(train_tensor_data), logger)
+    optimizer, scheduler = get_optimizer(model, params)
+    # scheduler = get_scheduler(params, optimizer, len(train_tensor_data), logger)
 
     model.train()
 
