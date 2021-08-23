@@ -48,7 +48,8 @@ class CPTEncoder(nn.Module):
             self, cpt_model, output_dim, layer_pulled=-1, add_linear=None):
         super(CPTEncoder, self).__init__()
         self.layer_pulled = layer_pulled
-        bert_output_dim = cpt_model.embeddings.word_embeddings.weight.size(1)
+        #bert_output_dim = cpt_model.embeddings.word_embeddings.weight.size(1)
+        bert_output_dim = cpt_model.model.encoder.block[-1].layer[-1].DenseReluDense.wo.out_features
 
         self.cpt_model = cpt_model
         if add_linear:
@@ -57,10 +58,10 @@ class CPTEncoder(nn.Module):
         else:
             self.additional_linear = None
 
-    def forward(self, token_ids, segment_ids, attention_mask):
-        cls_rep = self.model.get_cls_token_representations(
+    def forward(self, token_ids):
+        cls_rep = self.cpt_model.get_cls_token_representations(
             token_ids=token_ids,
-            apply_projection_and_normalize=self.hparams.use_projection,
+            apply_projection_and_normalize=False,
         )
 
         # decoder_input_ids = shift_right(

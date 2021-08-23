@@ -62,9 +62,9 @@ def get_context_representation(
 
     context_tokens = ["[CLS]"] + context_tokens + ["[SEP]"]
 
-    context_left_ids = tokenizer.convert_tokens_to_ids(["[CLS]"]+context_left[-left_quota:])
+    context_left_ids = tokenizer.convert_tokens_to_ids(["<extra_id_98>"]+context_left[-left_quota:])
     mention_ids = tokenizer.convert_tokens_to_ids(mention_tokens)
-    context_right_ids = tokenizer.convert_tokens_to_ids(context_right[:right_quota]+["[SEP]"])
+    context_right_ids = tokenizer.convert_tokens_to_ids(context_right[:right_quota])
     input_ids = context_left_ids + mention_ids + context_right_ids
     input_mention_mask = [False]*len(context_left_ids) + [True]*len(mention_ids) + [False]*len(context_right_ids)
     sentinel_token_ids = [
@@ -94,15 +94,16 @@ def get_candidate_representation(
     candidate_title=None,
     title_tag=ENT_TITLE_TAG,
 ):
-    cls_token = tokenizer.cls_token
-    sep_token = tokenizer.sep_token
+    #cls_token = tokenizer.cls_token
+    #sep_token = tokenizer.sep_token
     cand_tokens = tokenizer.tokenize(candidate_desc)
     if candidate_title is not None:
         title_tokens = tokenizer.tokenize(candidate_title)
         cand_tokens = title_tokens + [title_tag] + cand_tokens
 
     cand_tokens = cand_tokens[: max_seq_length - 2]
-    cand_tokens = [cls_token] + cand_tokens + [sep_token]
+    #cand_tokens = [cls_token] + cand_tokens + [sep_token]
+    cand_tokens = ["<extra_id_98>"] + cand_tokens
 
     input_ids = tokenizer.convert_tokens_to_ids(cand_tokens)
     padding = [0] * (max_seq_length - len(input_ids))

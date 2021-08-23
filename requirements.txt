@@ -16,3 +16,8 @@ tqdm
 transformers==4.6.0
 pytorch-lightning==1.3.3
 datasets
+pymongo
+ipython
+pytest
+black
+essential-generators

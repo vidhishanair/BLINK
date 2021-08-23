@@ -120,7 +120,7 @@ def get_cpt_optimizer(model, params):
         raise NotImplementedError
 
     scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
-    return optimizer, scheduler
+    return optimizer, scheduler["scheduler"]
 
 
 def ellipse(lst, max_display=5, sep='|'):

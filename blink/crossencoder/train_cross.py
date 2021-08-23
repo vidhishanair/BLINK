@@ -327,25 +327,25 @@ def main(params):
                 scheduler.step()
                 optimizer.zero_grad()
 
-            if (step + 1) % (params["eval_interval"] * grad_acc_steps) == 0:
-                logger.info("Evaluation on the development dataset")
-                evaluate(
-                    reranker,
-                    valid_dataloader,
-                    device=device,
-                    logger=logger,
-                    context_length=context_length,
-                    zeshel=params["zeshel"],
-                    silent=params["silent"],
-                )
-                logger.info("***** Saving fine - tuned model *****")
-                epoch_output_folder_path = os.path.join(
-                    model_output_path, "epoch_{}_{}".format(epoch_idx, part)
-                )
-                part += 1
-                utils.save_model(model, tokenizer, epoch_output_folder_path)
-                model.train()
-                logger.info("\n")
+            # if (step + 1) % (params["eval_interval"] * grad_acc_steps) == 0:
+            #     logger.info("Evaluation on the development dataset")
+            #     evaluate(
+            #         reranker,
+            #         valid_dataloader,
+            #         device=device,
+            #         logger=logger,
+            #         context_length=context_length,
+            #         zeshel=params["zeshel"],
+            #         silent=params["silent"],
+            #     )
+            #     logger.info("***** Saving fine - tuned model *****")
+            #     epoch_output_folder_path = os.path.join(
+            #         model_output_path, "epoch_{}_{}".format(epoch_idx, part)
+            #     )
+            #     part += 1
+            #     utils.save_model(model, tokenizer, epoch_output_folder_path)
+            #     model.train()
+            #     logger.info("\n")
 
         logger.info("***** Saving fine - tuned model *****")
         epoch_output_folder_path = os.path.join(

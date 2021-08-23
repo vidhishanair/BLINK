@@ -239,6 +239,10 @@ class BlinkParser(argparse.ArgumentParser):
             "--shuffle", type=bool, default=False, 
             help="Whether to shuffle train data",
         )
+        parser.add_argument("--optimizer", default="adam")
+        parser.add_argument("--adam_epsilon", default=1e-8, type=float)
+        parser.add_argument("--warmup_steps", default=0, type=int)  # 1000
+        parser.add_argument("--weight_decay", default=0.0, type=float)
 
     def add_eval_args(self, args=None):
         """
