@@ -16,7 +16,8 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Tenso
 
 from pytorch_transformers.tokenization_bert import BertTokenizer
 
-from blink.biencoder.biencoder import BiEncoderRanker
+#from blink.biencoder.biencoder import BiEncoderRanker
+from blink.biencoder.cpt_biencoder import BiEncoderRanker
 import blink.biencoder.data_process as data
 import blink.biencoder.nn_prediction as nnquery
 import blink.candidate_ranking.utils as utils

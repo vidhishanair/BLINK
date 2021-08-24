@@ -128,7 +128,7 @@ class BiEncoderRanker(torch.nn.Module):
             cands, self.NULL_IDX
         )
         embedding_context, _ = self.model(
-            token_idx_cands, segment_idx_cands, mask_cands, None, None, None
+            token_idx_cands, None
         )
         return embedding_context.cpu().detach()
 
@@ -137,7 +137,7 @@ class BiEncoderRanker(torch.nn.Module):
             cands, self.NULL_IDX
         )
         _, embedding_cands = self.model(
-            None, None, None, token_idx_cands, segment_idx_cands, mask_cands
+            None,  token_idx_cands
         )
         return embedding_cands.cpu().detach()
         # TODO: why do we need cpu here?
