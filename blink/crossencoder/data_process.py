@@ -47,8 +47,8 @@ def prepare_crossencoder_candidates(
     tokenizer, labels, nns, id2title, id2text, max_cand_length=128, topk=100
 ):
 
-    START_TOKEN = tokenizer.cls_token
-    END_TOKEN = tokenizer.sep_token
+    # START_TOKEN = tokenizer.cls_token
+    # END_TOKEN = tokenizer.sep_token
 
     candidate_input_list = []  # samples X topk=10 X 128
     label_input_list = []  # samples

@@ -25,22 +25,24 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Tenso
 from pytorch_transformers.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from pytorch_transformers.optimization import WarmupLinearSchedule
 from pytorch_transformers.tokenization_bert import BertTokenizer
+from transformers import AutoTokenizer
 
 import blink.candidate_retrieval.utils
-from blink.crossencoder.crossencoder import CrossEncoderRanker, load_crossencoder
+# from blink.crossencoder.crossencoder import CrossEncoderRanker, load_crossencoder
+from blink.crossencoder.cpt_crossencoder import CrossEncoderRanker, load_crossencoder
 import logging
 
 import blink.candidate_ranking.utils as utils
 import blink.biencoder.data_process as data
 from blink.biencoder.zeshel_utils import DOC_PATH, WORLDS, world_to_id
-from blink.common.optimizer import get_bert_optimizer
+from blink.common.optimizer import get_bert_optimizer, get_cpt_optimizer
 from blink.common.params import BlinkParser
 
 
 logger = None
 
 
-def modify(context_input, candidate_input, max_seq_length):
+def modify(context_input, candidate_input, max_seq_length, tokenizer=None):
     new_input = []
     context_input = context_input.tolist()
     candidate_input = candidate_input.tolist()
@@ -50,8 +52,11 @@ def modify(context_input, candidate_input, max_seq_length):
         cur_candidate = candidate_input[i]
         mod_input = []
         for j in range(len(cur_candidate)):
+            mention_prefix_ids = tokenizer.encode(f"mention: ", add_special_tokens=False)[0]
+            candidate_prefix_ids = tokenizer.encode(f"candidate: ", add_special_tokens=False)[0]
             # remove [CLS] token from candidate
-            sample = cur_input + cur_candidate[j][1:]
+            sample = mention_prefix_ids + cur_input + candidate_prefix_ids + cur_candidate[j][1:]
+            # sample = cur_input + cur_candidate[j][1:]
             sample = sample[:max_seq_length]
             mod_input.append(sample)
 
@@ -132,28 +137,25 @@ def evaluate(reranker, eval_dataloader, device, logger, context_length, zeshel=F
 
 
 def get_optimizer(model, params):
-    return get_bert_optimizer(
-        [model],
-        params["type_optimization"],
-        params["learning_rate"],
-        fp16=params.get("fp16"),
-    )
+    return get_cpt_optimizer(
+        model,
+        params)
 
 
-def get_scheduler(params, optimizer, len_train_data, logger):
-    batch_size = params["train_batch_size"]
-    grad_acc = params["gradient_accumulation_steps"]
-    epochs = params["num_train_epochs"]
-
-    num_train_steps = int(len_train_data / batch_size / grad_acc) * epochs
-    num_warmup_steps = int(num_train_steps * params["warmup_proportion"])
-
-    scheduler = WarmupLinearSchedule(
-        optimizer, warmup_steps=num_warmup_steps, t_total=num_train_steps,
-    )
-    logger.info(" Num optimization steps = %d" % num_train_steps)
-    logger.info(" Num warmup steps = %d", num_warmup_steps)
-    return scheduler
+# def get_scheduler(params, optimizer, len_train_data, logger):
+#     batch_size = params["train_batch_size"]
+#     grad_acc = params["gradient_accumulation_steps"]
+#     epochs = params["num_train_epochs"]
+#
+#     num_train_steps = int(len_train_data / batch_size / grad_acc) * epochs
+#     num_warmup_steps = int(num_train_steps * params["warmup_proportion"])
+#
+#     scheduler = WarmupLinearSchedule(
+#         optimizer, warmup_steps=num_warmup_steps, t_total=num_train_steps,
+#     )
+#     logger.info(" Num optimization steps = %d" % num_train_steps)
+#     logger.info(" Num warmup steps = %d", num_warmup_steps)
+#     return scheduler
 
 
 def main(params):
@@ -210,7 +212,9 @@ def main(params):
         candidate_input = candidate_input[:max_n]
         label_input = label_input[:max_n]
 
-    context_input = modify(context_input, candidate_input, max_seq_length)
+    tokenizer = AutoTokenizer.from_pretrained(params["tokenizer"])
+
+    context_input = modify(context_input, candidate_input, max_seq_length, tokenizer)
     if params["zeshel"]:
         src_input = train_data['worlds'][:len(context_input)]
         train_tensor_data = TensorDataset(context_input, label_input, src_input)
@@ -235,7 +239,7 @@ def main(params):
         candidate_input = candidate_input[:max_n]
         label_input = label_input[:max_n]
 
-    context_input = modify(context_input, candidate_input, max_seq_length)
+    context_input = modify(context_input, candidate_input, max_seq_length, tokenizer)
     if params["zeshel"]:
         src_input = valid_data["worlds"][:len(context_input)]
         valid_tensor_data = TensorDataset(context_input, label_input, src_input)
@@ -273,8 +277,8 @@ def main(params):
         "device: {} n_gpu: {}, distributed training: {}".format(device, n_gpu, False)
     )
 
-    optimizer = get_optimizer(model, params)
-    scheduler = get_scheduler(params, optimizer, len(train_tensor_data), logger)
+    optimizer, scheduler = get_optimizer(model, params)
+    # scheduler = get_scheduler(params, optimizer, len(train_tensor_data), logger)
 
     model.train()
 
