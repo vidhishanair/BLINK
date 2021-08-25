@@ -55,7 +55,7 @@ def modify(context_input, candidate_input, max_seq_length, tokenizer=None):
             mention_prefix_ids = tokenizer.encode(f"mention: ", add_special_tokens=False)[0]
             candidate_prefix_ids = tokenizer.encode(f"candidate: ", add_special_tokens=False)[0]
             # remove [CLS] token from candidate
-            sample = mention_prefix_ids + cur_input + candidate_prefix_ids + cur_candidate[j][1:]
+            sample = [mention_prefix_ids] + cur_input + [candidate_prefix_ids] + cur_candidate[j][1:]
             # sample = cur_input + cur_candidate[j][1:]
             sample = sample[:max_seq_length]
             mod_input.append(sample)

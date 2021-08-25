@@ -49,7 +49,8 @@ class CPTEncoder(nn.Module):
         super(CPTEncoder, self).__init__()
         self.layer_pulled = layer_pulled
         #bert_output_dim = cpt_model.embeddings.word_embeddings.weight.size(1)
-        bert_output_dim = cpt_model.model.encoder.block[-1].layer[-1].DenseReluDense.wo.out_features
+        #bert_output_dim = cpt_model.model.encoder.block[-1].layer[-1].DenseReluDense.wo.out_features
+        bert_output_dim = cpt_model.encoder.block[-1].layer[-1].DenseReluDense.wo.out_features
 
         self.cpt_model = cpt_model
         if add_linear:

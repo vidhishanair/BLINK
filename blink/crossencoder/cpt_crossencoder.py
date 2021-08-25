@@ -55,7 +55,7 @@ class CrossEncoderModule(torch.nn.Module):
             layer_pulled=params["pull_from_layer"],
             add_linear=params["add_linear"],
         )
-        # self.config = self.encoder.bert_model.config
+        self.config = self.encoder.cpt_model.config
 
     def forward(
             self, token_idx_ctxt

@@ -60,11 +60,12 @@ def get_context_representation(
         context_left[-left_quota:] + mention_tokens + context_right[:right_quota]
     )
 
-    context_tokens = ["[CLS]"] + context_tokens + ["[SEP]"]
+    #context_tokens = ["[CLS]"] + context_tokens + ["[SEP]"]
+    context_tokens = ["<extra_id_98>"] + context_tokens
 
     context_left_ids = tokenizer.convert_tokens_to_ids(["<extra_id_98>"]+context_left[-left_quota:])
     mention_ids = tokenizer.convert_tokens_to_ids(mention_tokens)
-    context_right_ids = tokenizer.convert_tokens_to_ids(context_right[:right_quota])
+    context_right_ids = tokenizer.convert_tokens_to_ids(context_right[:right_quota]) 
     input_ids = context_left_ids + mention_ids + context_right_ids
     input_mention_mask = [False]*len(context_left_ids) + [True]*len(mention_ids) + [False]*len(context_right_ids)
     sentinel_token_ids = [

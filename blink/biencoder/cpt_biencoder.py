@@ -19,7 +19,7 @@ from pytorch_transformers.modeling_bert import (
 
 from pytorch_transformers.tokenization_bert import BertTokenizer
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, T5ForConditionalGeneration
 from blink.common.ranker_base import BertEncoder, CPTEncoder, get_model_obj
 from blink.common.optimizer import get_bert_optimizer
 from blink.cpt.model import CPTModel
@@ -36,11 +36,17 @@ class BiEncoderModule(torch.nn.Module):
         super(BiEncoderModule, self).__init__()
         # ctxt_bert = BertModel.from_pretrained(params["bert_model"])
         # cand_bert = BertModel.from_pretrained(params['bert_model'])
-        ctxt_bert = CPTModel.load_from_checkpoint(
-            params["model_name_or_path"], contrastive_loss_method="cross_entropy"
+        # ctxt_bert = CPTModel.load_from_checkpoint(
+        #     params["model_name_or_path"], contrastive_loss_method="cross_entropy"
+        # )
+        # cand_bert = CPTModel.load_from_checkpoint(
+        #     params["model_name_or_path"], contrastive_loss_method="cross_entropy"
+        # )
+        ctxt_bert = T5ForConditionalGeneration.from_pretrained(
+            params["model_name_or_path"]
         )
-        cand_bert = CPTModel.load_from_checkpoint(
-            params["model_name_or_path"], contrastive_loss_method="cross_entropy"
+        cand_bert = T5ForConditionalGeneration.from_pretrained(
+            params["model_name_or_path"]
         )
         self.context_encoder = CPTEncoder(
             ctxt_bert,
@@ -77,10 +83,12 @@ class BiEncoderRanker(torch.nn.Module):
             "cuda" if torch.cuda.is_available() and not params["no_cuda"] else "cpu"
         )
         self.n_gpu = torch.cuda.device_count()
+        
         # init tokenizer
         self.NULL_IDX = 0
-        self.START_TOKEN = "[CLS]"
-        self.END_TOKEN = "[SEP]"
+        #self.START_TOKEN = "[CLS]"
+        #self.END_TOKEN = "[SEP]"
+        
         self.tokenizer = AutoTokenizer.from_pretrained(params["tokenizer"])
         #     BertTokenizer.from_pretrained(
         #     params["bert_model"], do_lower_case=params["lowercase"]
@@ -207,5 +215,5 @@ def to_bert_input(token_idx, null_idx):
     segment_idx = token_idx * 0
     mask = token_idx != null_idx
     # nullify elements in case self.NULL_IDX was not 0
-    token_idx = token_idx * mask.long()
+    #token_idx = token_idx * mask.long()
     return token_idx, segment_idx, mask
