@@ -62,9 +62,9 @@ def evaluate(
 
     for step, batch in enumerate(iter_):
         batch = tuple(t.to(device) for t in batch)
-        context_input, candidate_input, _, _ = batch
+        context_input, context_vecs_target, context_vecs_target_labels, context_vecs_link_decoder_indices, candidate_input, _, _ = batch
         with torch.no_grad():
-            eval_loss, logits = reranker(context_input, candidate_input)
+            eval_loss, logits = reranker(context_input, candidate_input, context_vecs_target, context_vecs_target_labels, context_vecs_link_decoder_indices)
 
         logits = logits.detach().cpu().numpy()
         # Using in-batch negatives, the label ids are diagonal
@@ -231,8 +231,9 @@ def main(params):
 
         for step, batch in enumerate(iter_):
             batch = tuple(t.to(device) for t in batch)
-            context_input, candidate_input, _, _ = batch
-            loss, _ = reranker(context_input, candidate_input)
+            context_input, context_vecs_target, context_vecs_target_labels, context_vecs_link_decoder_indices, candidate_input, _, _ = batch
+            loss, _ = reranker(context_input, candidate_input, context_vecs_target, context_vecs_target_labels,
+                               context_vecs_link_decoder_indices)
 
             # if n_gpu > 1:
             #     loss = loss.mean() # mean() to average on multi-gpu.

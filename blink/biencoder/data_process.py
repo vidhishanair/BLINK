@@ -34,6 +34,7 @@ def get_context_representation(
     ent_start_token=ENT_START_TAG,
     ent_end_token=ENT_END_TAG,
 ):
+
     mention_tokens = []
     if sample[mention_key] and len(sample[mention_key]) > 0:
         mention_tokens = tokenizer.tokenize(sample[mention_key])
@@ -68,10 +69,57 @@ def get_context_representation(
     context_right_ids = tokenizer.convert_tokens_to_ids(context_right[:right_quota]) 
     input_ids = context_left_ids + mention_ids + context_right_ids
     input_mention_mask = [False]*len(context_left_ids) + [True]*len(mention_ids) + [False]*len(context_right_ids)
+
+    mention_start_index = [len(context_left_ids)]
+    mention_indices = [0]
+
     sentinel_token_ids = [
         tokenizer.encode(f"<extra_id_{i}>", add_special_tokens=False)[0] for i in range(49)
     ]
+    target_token_ids = [tokenizer.encode(f"<extra_id_{k}>", add_special_tokens=False)[0] for k in range(49, 98)]  # for contrast loss
+    cls_token_id = tokenizer.encode(f"<extra_id_{98}>", add_special_tokens=False)[0]  # for contrast loss / document embedding
+
     source_target = split_token_ids_with_span_mask_into_source_target(input_ids, input_mention_mask, sentinel_token_ids)
+
+    prefix_ids = [cls_token_id] + [
+        target_token_ids[k] for k in range(source_target["num_masked_spans"])
+    ]
+    if True: # cls_at_encoder_side:
+        source_target["source"] = [cls_token_id] + source_target["source"]
+        # add one to mappings of original tokens to the source tokens (because we now have one additional CLS at the start)
+        source_target["original_token_idx_to_source_idx"] = [
+            el + 1 for el in source_target["original_token_idx_to_source_idx"]
+        ]
+    # ignore the prefix tokens for lm_loss except optionally for the first cls token
+    lm_loss_on_cls_token = True
+    masked_prefix_ids = [
+        -100 if ((not lm_loss_on_cls_token) or idx != 0) else el for idx, el in enumerate(prefix_ids)
+    ]
+    # instance = {
+    #     "source": torch.tensor(source_target["source"]),
+    #     "tokens": torch.tensor(source_target["source"]),
+    #     "target": torch.tensor(prefix_ids + source_target["target"]),
+    #     "prefix_length": torch.tensor(len(prefix_ids)),
+    #     "target_labels": torch.tensor(masked_prefix_ids + source_target["target"]),
+    #     # TODO: Are we sure we should mask out prefix ids?
+    # }
+    instance = {
+        "source": [0] * (max_seq_length - len(source_target["source"])) + source_target["source"],
+        "tokens": context_tokens,
+        "target": [0] * (max_seq_length - len(prefix_ids + source_target["target"])) + prefix_ids + source_target["target"],
+        "prefix_length": len(prefix_ids),
+        "target_labels": [0] * (max_seq_length - len(masked_prefix_ids + source_target["target"])) + masked_prefix_ids + source_target["target"],
+        # TODO: Are we sure we should mask out prefix ids?
+    }
+    mention_mask_index = [
+        source_target["mask_start_indices"].index(mask_start_index)
+        for mask_start_index in mention_start_index
+    ]
+    original_token_idx_to_source_idx = source_target["original_token_idx_to_source_idx"]
+    link_encoder_indices = [original_token_idx_to_source_idx[idx] for idx in mention_start_index]
+    instance["link_encoder_indices"] = link_encoder_indices
+    instance["link_decoder_indices"] = [x+1 for x in mention_mask_index]  # 1 + for the CLS token
+
 
     # input_ids = tokenizer.convert_tokens_to_ids(context_tokens)
 
@@ -81,11 +129,11 @@ def get_context_representation(
     assert len(input_ids) == max_seq_length
     assert len(input_mention_mask) == max_seq_length
 
-    return {
-        "tokens": context_tokens,
-        "token_mention_mask": context_tokens,
-        "ids": input_ids,
-    }
+    # return {
+    #     "tokens": context_tokens,
+    #     "ids": input_ids,
+    # }
+    return instance
 
 
 def get_candidate_representation(
@@ -105,8 +153,9 @@ def get_candidate_representation(
     cand_tokens = cand_tokens[: max_seq_length - 2]
     #cand_tokens = [cls_token] + cand_tokens + [sep_token]
     cand_tokens = ["<extra_id_98>"] + cand_tokens
-
     input_ids = tokenizer.convert_tokens_to_ids(cand_tokens)
+    input_mention_mask = [True]*len(input_ids)
+
     padding = [0] * (max_seq_length - len(input_ids))
     input_ids += padding
     assert len(input_ids) == max_seq_length
@@ -184,7 +233,10 @@ def process_mention_data(
         for sample in processed_samples[:5]:
             logger.info("Context tokens : " + " ".join(sample["context"]["tokens"]))
             logger.info(
-                "Context ids : " + " ".join([str(v) for v in sample["context"]["ids"]])
+                "Context source : " + " ".join([str(v) for v in sample["context"]["source"]])
+            )
+            logger.info(
+                "Context target : " + " ".join([str(v) for v in sample["context"]["target"]])
             )
             logger.info("Label tokens : " + " ".join(sample["label"]["tokens"]))
             logger.info(
@@ -194,7 +246,16 @@ def process_mention_data(
             logger.info("Label_id : %d" % sample["label_idx"][0])
 
     context_vecs = torch.tensor(
-        select_field(processed_samples, "context", "ids"), dtype=torch.long,
+        select_field(processed_samples, "context", "source"), dtype=torch.long,
+    )
+    context_vecs_target = torch.tensor(
+        select_field(processed_samples, "context", "target"), dtype=torch.long,
+    )
+    context_vecs_target_labels = torch.tensor(
+        select_field(processed_samples, "context", "target_labels"), dtype=torch.long,
+    )
+    context_vecs_link_decoder_indices = torch.tensor(
+        select_field(processed_samples, "context", "link_decoder_indices"), dtype=torch.long,
     )
     cand_vecs = torch.tensor(
         select_field(processed_samples, "label", "ids"), dtype=torch.long,
@@ -208,13 +269,18 @@ def process_mention_data(
     )
     data = {
         "context_vecs": context_vecs,
+        "context_vecs_target": context_vecs_target,
+        "context_vecs_target_labels": context_vecs_target_labels,
+        "context_vecs_link_decoder_indices": context_vecs_link_decoder_indices,
         "cand_vecs": cand_vecs,
         "label_idx": label_idx,
     }
 
     if use_world:
         data["src"] = src_vecs
-        tensor_data = TensorDataset(context_vecs, cand_vecs, src_vecs, label_idx)
+        tensor_data = TensorDataset(context_vecs, context_vecs_target, context_vecs_target_labels,
+                                    context_vecs_link_decoder_indices, cand_vecs, src_vecs, label_idx)
     else:
-        tensor_data = TensorDataset(context_vecs, cand_vecs, label_idx)
+        tensor_data = TensorDataset(context_vecs, context_vecs_target, context_vecs_target_labels,
+                                    context_vecs_link_decoder_indices, cand_vecs, label_idx)
     return data, tensor_data
