@@ -61,6 +61,7 @@ class CPTEncoder(nn.Module):
         bert_output_dim = self.cpt_model.encoder.block[-1].layer[-1].DenseReluDense.wo.out_features
 
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        self.cls_token = self.tokenizer.encode("<extra_id_98>")[0]
 
         if add_linear:
             self.additional_linear = nn.Linear(bert_output_dim, output_dim)
@@ -69,12 +70,12 @@ class CPTEncoder(nn.Module):
             self.additional_linear = None
 
     def get_cls_token_representations(self, token_ids, apply_projection_and_normalize):
-        cls_token = self.tokenizer.encode("<extra_id_98>")[0]
+        # cls_token = self.tokenizer.encode("<extra_id_98>")[0]
         device = token_ids.device
         dtype = token_ids.dtype
         cls_tokens = torch.full(
             size=(token_ids.shape[0], 1),
-            fill_value=cls_token,
+            fill_value=self.cls_token,
             device=device,
             dtype=dtype,
         )
